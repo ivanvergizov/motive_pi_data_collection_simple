@@ -210,7 +210,6 @@ def configure_default_opengl_format(msaa_samples: int) -> None:
     surface_format.setSamples(msaa_samples)
     QSurfaceFormat.setDefaultFormat(surface_format)
 
-
 def parse_resolution_option(
         resolution_text: str
 ) -> tuple[int, int] | None:
