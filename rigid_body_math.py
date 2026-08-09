@@ -2,13 +2,6 @@ from __future__ import annotations
 
 import numpy as np
 
-def motive_position_to_display(position_motive: np.ndarray) -> np.ndarray:
-    x_motive = position_motive[0]
-    y_motive = position_motive[1]
-    z_motive = position_motive[2]
-
-    return np.array([x_motive, z_motive, y_motive], dtype=float)
-
 def motive_positions_to_display(x_motive: np.ndarray,
         y_motive: np.ndarray, z_motive: np.ndarray) -> np.ndarray:
     return np.column_stack([x_motive, z_motive, y_motive])

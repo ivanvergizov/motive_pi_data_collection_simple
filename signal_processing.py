@@ -70,14 +70,6 @@ def smooth_positions_centered(
         ]
     )
 
-def normalize_quaternion(quaternion: np.ndarray) -> np.ndarray:
-    norm = float(np.linalg.norm(quaternion))
-
-    if norm == 0.0:
-        return np.array([0.0, 0.0, 0.0, 1.0], dtype=float)
-
-    return quaternion / norm
-
 def normalize_quaternions(quaternions: np.ndarray) -> np.ndarray:
     norms = np.linalg.norm(quaternions, axis=1)
 
