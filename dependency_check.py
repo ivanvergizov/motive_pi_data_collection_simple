@@ -14,7 +14,7 @@ DEPENDENCY_IMPORTS = {
     "pyvista": "pyvista",
     "pyvistaqt": "pyvistaqt",
     "vtk": "vtkmodules.vtkRenderingCore",
-    "Pillow": "PIL.Image",
+    "PyOpenGL": "OpenGL.GL",
 }
 
 PIP_PACKAGES = [
@@ -25,7 +25,7 @@ PIP_PACKAGES = [
     "pyvista",
     "pyvistaqt",
     "vtk",
-    "Pillow",
+    "PyOpenGL>=3.1.7",
 ]
 
 

@@ -13,11 +13,13 @@ from app_types import BodyDisplaySettings, RoomBounds, SceneFrame
 from constants import parse_preview_aa
 from rendering.pyvista_helpers import (
     add_body_actors,
+    add_body_labels,
     add_room_bounds,
     apply_camera_state,
     camera_state,
     frame_camera,
     update_body_actors,
+    update_body_labels,
 )
 
 
@@ -60,8 +62,10 @@ class PyVistaRigidBodyScene(QWidget):
     def configure_bodies(self, settings: dict[str, BodyDisplaySettings]) -> None:
         self._remove_bodies()
         self.settings = dict(settings)
-        self.actors, self.labels = add_body_actors(self.plotter, self.settings)
-        update_body_actors(self.actors, self.labels, self.settings, self.last_frame)
+        self.actors = add_body_actors(self.plotter, self.settings)
+        self.labels = add_body_labels(self.plotter, self.settings)
+        update_body_actors(self.actors, self.last_frame)
+        update_body_labels(self.labels, self.settings, self.last_frame)
 
     def set_room_bounds(self, bounds: RoomBounds) -> None:
         self.bounds = bounds
@@ -72,7 +76,8 @@ class PyVistaRigidBodyScene(QWidget):
     def set_frame(self, frame: SceneFrame | None) -> None:
         start = time.perf_counter()
         self.last_frame = frame
-        update_body_actors(self.actors, self.labels, self.settings, frame)
+        update_body_actors(self.actors, frame)
+        update_body_labels(self.labels, self.settings, frame)
         self.update_ms.append((time.perf_counter() - start) * 1000.0)
         self.update_times.append(time.perf_counter())
 
@@ -95,10 +100,12 @@ class PyVistaRigidBodyScene(QWidget):
         self._layout.removeWidget(old_plotter)
         self.plotter = self._create_plotter()
         self._layout.addWidget(self.plotter)
-        self.actors, self.labels = add_body_actors(self.plotter, self.settings)
+        self.actors = add_body_actors(self.plotter, self.settings)
+        self.labels = add_body_labels(self.plotter, self.settings)
         if self.bounds is not None:
             add_room_bounds(self.plotter, self.bounds)
-        update_body_actors(self.actors, self.labels, self.settings, self.last_frame)
+        update_body_actors(self.actors, self.last_frame)
+        update_body_labels(self.labels, self.settings, self.last_frame)
         apply_camera_state(self.plotter, camera)
         old_plotter.close()
         old_plotter.deleteLater()

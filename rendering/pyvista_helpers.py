@@ -5,7 +5,7 @@ import pyvista as pv
 from vtkmodules.vtkRenderingCore import vtkBillboardTextActor3D
 
 from app_types import BodyDisplaySettings, RoomBounds, SceneFrame
-from body_geometry import create_body_faces, create_body_vertices
+from body_geometry import create_body_geometry
 from constants import (
     PYVISTA_AXIS_COLOR,
     PYVISTA_AXIS_FONT_SIZE,
@@ -16,17 +16,38 @@ from constants import (
 from rigid_body_math import quaternion_xyzw_to_rotation_matrix
 
 
+def _add_body_label(target, name: str) -> vtkBillboardTextActor3D:
+    label = vtkBillboardTextActor3D()
+    label.SetInput(name)
+    label.SetDisplayOffset(0, PYVISTA_BODY_LABEL_OFFSET)
+    label.SetVisibility(False)
+    text = label.GetTextProperty()
+    text.SetColor(0.08, 0.08, 0.08)
+    text.SetFontSize(PYVISTA_BODY_LABEL_FONT_SIZE)
+    text.SetJustificationToCentered()
+    text.SetVerticalJustificationToBottom()
+    target.add_actor(label, reset_camera=False, name=f"label:{name}", pickable=False, render=False)
+    return label
+
+
+def add_body_labels(
+    target,
+    settings: dict[str, BodyDisplaySettings],
+) -> dict[str, vtkBillboardTextActor3D]:
+    return {name: _add_body_label(target, name) for name in settings}
+
+
 def add_body_actors(
     plotter,
     settings: dict[str, BodyDisplaySettings],
     line_scale: float = 1.0,
-) -> tuple[dict[str, pv.Actor], dict[str, vtkBillboardTextActor3D]]:
+) -> dict[str, pv.Actor]:
     actors: dict[str, pv.Actor] = {}
-    labels: dict[str, vtkBillboardTextActor3D] = {}
 
     for name, setting in settings.items():
-        vertices = create_body_vertices(setting.length, setting.width, setting.height)
-        faces = create_body_faces()
+        vertices, faces = create_body_geometry(
+            setting.body_type, setting.length, setting.width, setting.height
+        )
         vtk_faces = np.column_stack([np.full(len(faces), 3, dtype=np.int64), faces]).reshape(-1)
         mesh = pv.PolyData(np.asarray(vertices, dtype=float), vtk_faces)
 
@@ -46,19 +67,7 @@ def add_body_actors(
         actor.use_bounds = False
         actors[name] = actor
 
-        label = vtkBillboardTextActor3D()
-        label.SetInput(name)
-        label.SetDisplayOffset(0, PYVISTA_BODY_LABEL_OFFSET)
-        label.SetVisibility(False)
-        text = label.GetTextProperty()
-        text.SetColor(0.08, 0.08, 0.08)
-        text.SetFontSize(PYVISTA_BODY_LABEL_FONT_SIZE)
-        text.SetJustificationToCentered()
-        text.SetVerticalJustificationToBottom()
-        plotter.add_actor(label, reset_camera=False, name=f"label:{name}", pickable=False, render=False)
-        labels[name] = label
-
-    return actors, labels
+    return actors
 
 
 def add_room_bounds(plotter, bounds: RoomBounds, line_scale: float = 1.0):
@@ -138,18 +147,11 @@ def set_room_components(actor, *, axes: bool, grid: bool, text: bool) -> None:
         actor.ZAxisMinorTickVisibilityOff()
 
 
-def update_body_actors(
-    actors,
-    labels,
-    settings: dict[str, BodyDisplaySettings],
-    frame: SceneFrame | None,
-) -> None:
+def update_body_actors(actors, frame: SceneFrame | None) -> None:
     for name, actor in actors.items():
         pose = None if frame is None else frame.poses.get(name)
-        label = labels[name]
         if pose is None:
             actor.visibility = False
-            label.SetVisibility(False)
             continue
 
         transform = np.eye(4, dtype=float)
@@ -157,6 +159,18 @@ def update_body_actors(
         transform[:3, 3] = np.asarray(pose.position, dtype=float)
         actor.user_matrix = transform
         actor.visibility = True
+
+
+def update_body_labels(
+    labels,
+    settings: dict[str, BodyDisplaySettings],
+    frame: SceneFrame | None,
+) -> None:
+    for name, label in labels.items():
+        pose = None if frame is None else frame.poses.get(name)
+        if pose is None:
+            label.SetVisibility(False)
+            continue
 
         label_position = np.asarray(pose.position, dtype=float).copy()
         label_position[2] += max(settings[name].max_dimension * 0.75, 0.03)

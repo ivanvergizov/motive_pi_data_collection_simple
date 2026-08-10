@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import numpy as np
 
-from app_types import BodyDisplaySettings, BodyPose, SceneFrame, SignalDataType, SignalMode
-from constants import SIGNAL_DEFINITIONS, color_for_curve
+from app_types import BodyDisplaySettings, BodyPose, BodyType, SceneFrame, SignalDataType, SignalMode
+from constants import DEFAULT_BODY_TYPE, SIGNAL_DEFINITIONS, color_for_curve
 from motive_io import RigidBodyData, TrackingSession
 from rigid_body_math import motive_positions_to_display, quaternion_xyzw_to_xyz_degrees
 from room_geometry import calculate_room_bounds
@@ -21,8 +23,13 @@ def nearest_sample_index(times: np.ndarray, time_s: float) -> int:
 
 
 class TrackingDataProvider:
-    def __init__(self, session: TrackingSession | None = None) -> None:
+    def __init__(
+        self,
+        session: TrackingSession | None = None,
+        body_type: BodyType = DEFAULT_BODY_TYPE,
+    ) -> None:
         self.session: TrackingSession | None = None
+        self.default_body_type = body_type
         self.display_positions: dict[str, np.ndarray] = {}
         self.display_rotations: dict[str, np.ndarray] = {}
         self.body_display_settings: dict[str, BodyDisplaySettings] = {}
@@ -49,8 +56,15 @@ class TrackingDataProvider:
                 [body.rotation_x, body.rotation_y, body.rotation_z, body.rotation_w]
             )
             self.body_display_settings[body_name] = BodyDisplaySettings(
-                color=color_for_curve(body_index)
+                body_type=self.default_body_type,
+                color=color_for_curve(body_index),
             )
+
+    def set_body_type(self, body_name: str, body_type: BodyType) -> None:
+        self.body_display_settings[body_name] = replace(
+            self.body_display_settings[body_name],
+            body_type=body_type,
+        )
 
     def clear_smoothing_cache(self) -> None:
         self._smoothed_source_positions.clear()
@@ -64,10 +78,7 @@ class TrackingDataProvider:
         if self._smoothing_seconds == float(smoothing_seconds) and self._smoothed_source_positions:
             return
 
-        self._smoothed_source_positions.clear()
-        self._smoothed_display_positions.clear()
-        self._smoothed_rotations.clear()
-        self._smoothed_euler.clear()
+        self.clear_smoothing_cache()
         for body_name, body in session.bodies.items():
             source_positions = np.column_stack([body.position_x, body.position_y, body.position_z])
             source_positions, rotations = smooth_tracking_positions_and_rotations(

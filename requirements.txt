@@ -5,4 +5,4 @@ pyqtgraph>=0.14.0
 pyvista
 pyvistaqt
 vtk
-Pillow
+PyOpenGL>=3.1.7

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QCheckBox, QDoubleSpinBox, QGroupBox, QHBoxLayout, QLabel, QPushButton,
+    QCheckBox, QDoubleSpinBox, QGroupBox, QHBoxLayout, QLabel,
     QScrollArea, QVBoxLayout, QWidget,
 )
 
@@ -25,8 +25,6 @@ class SignalPlotTab(QWidget):
 
         self.source_widget = SessionSourceWidget()
         self.selection_widget = SignalSelectionWidget()
-        self.update_button = QPushButton("Update plot")
-        self.update_button.setEnabled(False)
         self.smoothing = SmoothingControlsWidget("Plot smoothing")
         self.smoothing.set_controls_enabled(False)
         self.raw_checkbox = QCheckBox("Plot values before interpolation")
@@ -46,7 +44,6 @@ class SignalPlotTab(QWidget):
         settings_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         settings_layout.addWidget(self.source_widget)
         settings_layout.addWidget(self.selection_widget)
-        settings_layout.addWidget(self.update_button)
         settings_layout.addWidget(self.smoothing)
 
         options = QGroupBox("Plot options")
@@ -91,7 +88,6 @@ class SignalPlotTab(QWidget):
     def _connect_signals(self) -> None:
         self.source_widget.file_selected.connect(self.load_csv)
         self.selection_widget.selections_changed.connect(self.update_plot)
-        self.update_button.clicked.connect(self.update_plot)
         self.smoothing.settings_changed.connect(self._handle_smoothing_changed)
         self.raw_checkbox.stateChanged.connect(self._handle_mode_changed)
 
@@ -108,7 +104,6 @@ class SignalPlotTab(QWidget):
         self.source_file_path = source_file_path
         self.data.set_session(session)
         self.selection_widget.set_bodies(list(session.bodies))
-        self.update_button.setEnabled(True)
         self.raw_checkbox.setEnabled(True)
         self._update_smoothing_state()
         if len(session.time):

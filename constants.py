@@ -1,3 +1,5 @@
+from app_types import BodyType
+
 SIGNAL_DEFINITIONS = {
     "Position X": ("position", 0),
     "Position Y": ("position", 1),
@@ -17,6 +19,8 @@ PLOT_COLORS = [
     "#437c39", "#2c808d", "#81217c", "#80002f", "#890346",
 ]
 
+DEFAULT_BODY_TYPE: BodyType = "tetrahedron"
+
 DEFAULT_PREVIEW_AA = "MSAA 4x"
 PREVIEW_AA_OPTIONS = ["Off", "MSAA 2x", "MSAA 4x", "MSAA 8x", "MSAA 16x", "SSAA"]
 
@@ -28,13 +32,9 @@ EXPORT_RESOLUTION_OPTIONS = [
 ]
 EXPORT_MSAA_OPTIONS = ["Off", "2x", "4x", "8x", "16x"]
 SSAA_OPTIONS = ["1x", "2x", "3x", "4x"]
-VIDEO_CODEC_OPTIONS = [
-    "H.264 RGB lossless (MP4)",
-    "FFV1 lossless (MKV)",
-    "H.264 high quality (MP4)",
-    "H.265 high quality (MP4)",
-]
-
+H264_RGB_LOSSLESS = "H.264 RGB lossless (MP4)"
+H265_HIGH_QUALITY = "H.265 high quality (MP4)"
+VIDEO_CODEC_OPTIONS = [H264_RGB_LOSSLESS, H265_HIGH_QUALITY]
 # Shared by interactive PyVista playback and off-screen video export.
 PYVISTA_AXIS_FONT_SIZE = 26
 PYVISTA_BODY_LABEL_FONT_SIZE = 10

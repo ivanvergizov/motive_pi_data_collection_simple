@@ -7,6 +7,7 @@ import numpy as np
 
 SignalDataType = Literal["position", "euler", "quaternion"]
 SignalMode = Literal["interpolated", "raw", "smoothed"]
+BodyType = Literal["tetrahedron", "rectangular_prism"]
 WorkspaceType = Literal["signals", "recorded_3d", "live", "export"]
 
 
@@ -27,6 +28,7 @@ class CurveSpec:
 
 @dataclass(frozen=True)
 class BodyDisplaySettings:
+    body_type: BodyType
     length: float = 0.09
     width: float = 0.065
     height: float = 0.025

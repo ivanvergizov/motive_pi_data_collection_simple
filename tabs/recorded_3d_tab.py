@@ -6,7 +6,7 @@ import time
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QScrollArea, QVBoxLayout, QWidget
 
-from constants import DEFAULT_PREVIEW_AA
+from constants import DEFAULT_BODY_TYPE, DEFAULT_PREVIEW_AA
 from motive_io import TrackingSession, load_motive_rigid_body_csv
 from playback_controller import PlaybackController
 from rendering.pyvista_scene import PyVistaRigidBodyScene
@@ -23,7 +23,7 @@ class Recorded3DPlaybackTab(QWidget):
         super().__init__()
         self.session: TrackingSession | None = None
         self.source_file_path: str | None = None
-        self.data = TrackingDataProvider()
+        self.data = TrackingDataProvider(body_type=DEFAULT_BODY_TYPE)
         self.playback = PlaybackController(self)
 
         self.source_widget = SessionSourceWidget()

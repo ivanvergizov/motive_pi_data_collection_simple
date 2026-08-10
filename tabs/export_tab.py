@@ -23,11 +23,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from constants import DEFAULT_PREVIEW_AA, VIDEO_CODEC_OPTIONS
+from constants import DEFAULT_BODY_TYPE, DEFAULT_PREVIEW_AA, H264_RGB_LOSSLESS, VIDEO_CODEC_OPTIONS
 from motive_io import TrackingSession, load_motive_rigid_body_csv
 from rendering.pyvista_scene import PyVistaRigidBodyScene
 from tracking_data import TrackingDataProvider, nearest_sample_index
-from video_export import find_ffmpeg, output_extension
+from video_export import find_ffmpeg
 from widgets.body_selection import BodySelectionWidget
 from widgets.render_settings import RenderSettingsWidget
 from widgets.session_source import SessionSourceWidget
@@ -57,7 +57,7 @@ class ExportTab(QWidget):
         self.source_file_path: str | None = None
         self.output_file_path: str | None = None
         self.ffmpeg_path = find_ffmpeg() or ""
-        self.data = TrackingDataProvider()
+        self.data = TrackingDataProvider(body_type=DEFAULT_BODY_TYPE)
 
         self.source_widget = SessionSourceWidget("Export source")
         self.body_selection = BodySelectionWidget()
@@ -75,7 +75,7 @@ class ExportTab(QWidget):
 
         self.codec_combobox = QComboBox()
         self.codec_combobox.addItems(VIDEO_CODEC_OPTIONS)
-        self.codec_combobox.setCurrentText("H.264 RGB lossless (MP4)")
+        self.codec_combobox.setCurrentText(H264_RGB_LOSSLESS)
         self.codec_combobox.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
 
         self.ffmpeg_status_label = QLabel()
@@ -105,6 +105,7 @@ class ExportTab(QWidget):
         self.progress_bar.setFormat("%p%")
         self.frames_label = QLabel("Frames completed: 0 / 0")
         self.eta_label = QLabel("Estimated time left: --")
+        self.elapsed_label = QLabel("Completed in: --")
 
         self.worker: QProcess | None = None
         self.worker_stdout = ""
@@ -189,6 +190,7 @@ class ExportTab(QWidget):
         layout.addWidget(self.progress_bar)
         layout.addWidget(self.frames_label)
         layout.addWidget(self.eta_label)
+        layout.addWidget(self.elapsed_label)
         return group
 
     def _connect_signals(self) -> None:
@@ -198,7 +200,6 @@ class ExportTab(QWidget):
         self.render_settings.msaa_combobox.currentTextChanged.connect(self._apply_export_preview_aa)
         self.render_settings.ssaa_combobox.currentTextChanged.connect(self._apply_export_preview_aa)
         self.output_button.clicked.connect(self.select_output_file)
-        self.codec_combobox.currentTextChanged.connect(self._handle_codec_changed)
         self.ffmpeg_browse_button.clicked.connect(self._select_ffmpeg)
         self.start_time_spinbox.valueChanged.connect(self._validate_time_range)
         self.end_time_spinbox.valueChanged.connect(self._validate_time_range)
@@ -276,22 +277,15 @@ class ExportTab(QWidget):
         self.ffmpeg_status_label.setToolTip(self.ffmpeg_path if valid else "Browse to ffmpeg.exe")
         self._update_export_button()
 
-    def _handle_codec_changed(self, _text: str) -> None:
-        if self.output_file_path:
-            path = Path(self.output_file_path).with_suffix(output_extension(self.codec_combobox.currentText()))
-            self.output_file_path = str(path)
-            self._set_output_label(path)
-        self._update_export_button()
-
     def select_output_file(self) -> None:
-        extension = output_extension(self.codec_combobox.currentText())
-        filter_text = "Matroska video (*.mkv)" if extension == ".mkv" else "MP4 video (*.mp4)"
-        path_text, _ = QFileDialog.getSaveFileName(self, "Select export file", "", f"{filter_text};;All files (*)")
+        path_text, _ = QFileDialog.getSaveFileName(
+            self, "Select export file", "", "MP4 video (*.mp4);;All files (*)"
+        )
         if not path_text:
             return
         path = Path(path_text)
-        if path.suffix.lower() != extension:
-            path = path.with_suffix(extension)
+        if path.suffix.lower() != ".mp4":
+            path = path.with_suffix(".mp4")
         self.output_file_path = str(path)
         self._set_output_label(path)
         self._update_export_button()
@@ -324,7 +318,7 @@ class ExportTab(QWidget):
         msaa = self.render_settings.msaa_samples()
         ssaa = self.render_settings.ssaa_factor()
         codec = self.codec_combobox.currentText()
-        output_path = Path(self.output_file_path).with_suffix(output_extension(codec))
+        output_path = Path(self.output_file_path).with_suffix(".mp4")
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         token = uuid.uuid4().hex
@@ -348,6 +342,10 @@ class ExportTab(QWidget):
             "camera": self.scene.export_camera_state(),
             "render_dpi": int(self.scene.plotter.render_window.GetDPI()),
             "selected_bodies": self.body_selection.selected_names(),
+            "body_types": {
+                name: setting.body_type
+                for name, setting in self.data.body_display_settings.items()
+            },
             "smoothing_enabled": self.smoothing.enabled,
             "smoothing_seconds": self.smoothing.seconds,
             "width": width,
@@ -365,6 +363,7 @@ class ExportTab(QWidget):
         self.progress_bar.setValue(0)
         self.frames_label.setText(f"Frames completed: 0 / {total}")
         self.eta_label.setText("Estimated time left: estimating…")
+        self.elapsed_label.setText("Completed in: --")
 
         process = QProcess(self)
         process.setProcessChannelMode(QProcess.ProcessChannelMode.SeparateChannels)
@@ -411,9 +410,13 @@ class ExportTab(QWidget):
         elif event_type == "complete":
             self.worker_terminal_event = "complete"
             self.eta_label.setText("Estimated time left: 0:00")
+            self.elapsed_label.setText(
+                f"Completed in: {_duration_text(float(event.get('elapsed_seconds', 0.0)))}"
+            )
         elif event_type == "cancelled":
             self.worker_terminal_event = "cancelled"
             self.eta_label.setText("Estimated time left: cancelled")
+            self.elapsed_label.setText("Completed in: --")
         elif event_type == "error":
             self.worker_terminal_event = "error"
             self.worker_error_message = str(event.get("message", "Export failed."))
@@ -465,7 +468,7 @@ class ExportTab(QWidget):
         if stderr:
             message += f"\n\nWorker stderr:\n{stderr[-3000:]}"
         if self.log_path is not None:
-            message += f"\n\nDiagnostic log:\n{self.log_path}"
+            message += f"\n\nExport log:\n{self.log_path}"
         self._show_failure(message)
 
     def cancel_export(self) -> None:

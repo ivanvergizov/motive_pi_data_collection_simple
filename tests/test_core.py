@@ -4,6 +4,8 @@ import unittest
 
 import numpy as np
 
+from body_geometry import create_body_geometry
+from constants import H264_RGB_LOSSLESS, H265_HIGH_QUALITY
 from motive_io import RigidBodyData, TrackingSession
 from room_geometry import calculate_room_bounds
 from tracking_data import TrackingDataProvider, nearest_sample_index
@@ -74,6 +76,18 @@ class CoreRefactorTests(unittest.TestCase):
         hidden = self.data.scene_frame(0.2, 2, set(), False, 0.25)
         self.assertEqual(hidden.poses, {})
 
+    def test_body_type_can_be_changed_per_body(self) -> None:
+        self.assertEqual(self.data.body_display_settings["Body"].body_type, "tetrahedron")
+        self.data.set_body_type("Body", "rectangular_prism")
+        self.assertEqual(self.data.body_display_settings["Body"].body_type, "rectangular_prism")
+
+    def test_body_geometry_shapes(self) -> None:
+        tetra_vertices, tetra_faces = create_body_geometry("tetrahedron", 0.09, 0.065, 0.025)
+        box_vertices, box_faces = create_body_geometry("rectangular_prism", 0.09, 0.065, 0.025)
+        self.assertEqual(tetra_vertices.shape, (4, 3))
+        self.assertEqual(tetra_faces.shape, (4, 3))
+        self.assertEqual(box_vertices.shape, (8, 3))
+        self.assertEqual(box_faces.shape, (12, 3))
 
     def test_nearest_sample_index(self) -> None:
         self.assertEqual(nearest_sample_index(self.session.time, 0.14), 1)
@@ -95,7 +109,7 @@ class VideoExportCommandTests(unittest.TestCase):
         from video_export import VideoEncodingSettings, build_ffmpeg_command
 
         settings = VideoEncodingSettings(
-            codec_name="H.264 RGB lossless (MP4)",
+            codec_name=H264_RGB_LOSSLESS,
             fps=60,
             width=1920,
             height=1080,
@@ -105,17 +119,17 @@ class VideoExportCommandTests(unittest.TestCase):
         self.assertIn("0", command)
         self.assertIn("1920x1080", command)
 
-    def test_ffv1_command(self) -> None:
+    def test_h265_command(self) -> None:
         from video_export import VideoEncodingSettings, build_ffmpeg_command
 
         settings = VideoEncodingSettings(
-            codec_name="FFV1 lossless (MKV)",
+            codec_name=H265_HIGH_QUALITY,
             fps=30,
             width=1280,
             height=720,
         )
-        command = build_ffmpeg_command("ffmpeg", "output.mkv", settings)
-        self.assertIn("ffv1", command)
+        command = build_ffmpeg_command("ffmpeg", "output.mp4", settings)
+        self.assertIn("libx265", command)
         self.assertIn("1280x720", command)
 
 
