@@ -5,13 +5,13 @@ import sys
 
 os.environ.setdefault("QT_API", "pyside6")
 
-from dependency_check import ensure_dependencies_or_exit
+from motion_app.support.dependency_check import ensure_dependencies_or_exit
 
 ensure_dependencies_or_exit()
 
 from PySide6.QtWidgets import QApplication
 
-from main_window import WorkspaceMainWindow
+from motion_app.ui.main_window import WorkspaceMainWindow
 
 
 def main() -> None:

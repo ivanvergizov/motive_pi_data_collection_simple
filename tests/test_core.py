@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+from pathlib import Path
+import tempfile
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
-from body_geometry import create_body_geometry
-from constants import H264_RGB_LOSSLESS, H265_HIGH_QUALITY
-from motive_io import RigidBodyData, TrackingSession
-from room_geometry import calculate_room_bounds
-from tracking_data import TrackingDataProvider, nearest_sample_index
+from motion_app.core.body_config import load_body_type_map
+from motion_app.core.constants import H264_RGB_LOSSLESS, H265_HIGH_QUALITY
+from motion_app.core.motive_io import RigidBodyData, TrackingSession
+from motion_app.core.room_geometry import calculate_room_bounds
+from motion_app.core.tracking_data import TrackingDataProvider, nearest_sample_index
+from motion_app.exporting.video_export import VideoEncodingSettings, build_ffmpeg_command, export_frame_count
+from motion_app.geometry.body_geometry import body_dimensions, create_body_geometry
 
 
 def make_body() -> RigidBodyData:
@@ -46,7 +51,7 @@ def make_body() -> RigidBodyData:
     )
 
 
-class CoreRefactorTests(unittest.TestCase):
+class CoreTests(unittest.TestCase):
     def setUp(self) -> None:
         self.session = TrackingSession(
             frames=np.arange(5),
@@ -76,18 +81,53 @@ class CoreRefactorTests(unittest.TestCase):
         hidden = self.data.scene_frame(0.2, 2, set(), False, 0.25)
         self.assertEqual(hidden.poses, {})
 
-    def test_body_type_can_be_changed_per_body(self) -> None:
+    def test_unmapped_body_defaults_to_tetrahedron(self) -> None:
         self.assertEqual(self.data.body_display_settings["Body"].body_type, "tetrahedron")
-        self.data.set_body_type("Body", "rectangular_prism")
-        self.assertEqual(self.data.body_display_settings["Body"].body_type, "rectangular_prism")
 
-    def test_body_geometry_shapes(self) -> None:
-        tetra_vertices, tetra_faces = create_body_geometry("tetrahedron", 0.09, 0.065, 0.025)
-        box_vertices, box_faces = create_body_geometry("rectangular_prism", 0.09, 0.065, 0.025)
+    def test_body_type_mapping_is_applied_when_session_is_created(self) -> None:
+        with patch("motion_app.core.tracking_data.load_body_type_map", return_value={"Body": "tablet"}):
+            data = TrackingDataProvider(self.session)
+        self.assertEqual(data.body_display_settings["Body"].body_type, "tablet")
+
+    def test_body_type_can_still_be_changed_programmatically(self) -> None:
+        self.data.set_body_type("Body", "raspberry_pi")
+        self.assertEqual(self.data.body_display_settings["Body"].body_type, "raspberry_pi")
+
+    def test_body_geometry_shapes_and_dimensions(self) -> None:
+        tetra_vertices, tetra_faces = create_body_geometry("tetrahedron")
+        pi_vertices, pi_faces = create_body_geometry("raspberry_pi")
+        tablet_vertices, tablet_faces = create_body_geometry("tablet")
+        mobile_vertices, mobile_faces = create_body_geometry("mobile")
         self.assertEqual(tetra_vertices.shape, (4, 3))
         self.assertEqual(tetra_faces.shape, (4, 3))
-        self.assertEqual(box_vertices.shape, (8, 3))
-        self.assertEqual(box_faces.shape, (12, 3))
+        self.assertEqual(pi_vertices.shape, (8, 3))
+        self.assertEqual(pi_faces.shape, (12, 3))
+        self.assertEqual(tablet_vertices.shape, (8, 3))
+        self.assertEqual(tablet_faces.shape, (12, 3))
+        self.assertEqual(mobile_vertices.shape, (8, 3))
+        self.assertEqual(mobile_faces.shape, (12, 3))
+
+        pi = body_dimensions("raspberry_pi")
+        tablet = body_dimensions("tablet")
+        mobile = body_dimensions("mobile")
+        self.assertAlmostEqual(tablet.length, pi.length * 3.0)
+        self.assertAlmostEqual(tablet.width, pi.width * 3.0)
+        self.assertAlmostEqual(tablet.height, pi.height * 0.5)
+        self.assertAlmostEqual(mobile.length, tablet.length * 0.5)
+        self.assertAlmostEqual(mobile.width, tablet.width * 0.5)
+        self.assertAlmostEqual(mobile.height, tablet.height)
+
+    def test_body_type_csv(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "rigid_body_types.csv"
+            path.write_text(
+                "rigid_body_name,body_type\nPi 1,raspberry_pi\nScreen 1,tablet\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                load_body_type_map(path),
+                {"Pi 1": "raspberry_pi", "Screen 1": "tablet"},
+            )
 
     def test_nearest_sample_index(self) -> None:
         self.assertEqual(nearest_sample_index(self.session.time, 0.14), 1)
@@ -106,8 +146,6 @@ class CoreRefactorTests(unittest.TestCase):
 
 class VideoExportCommandTests(unittest.TestCase):
     def test_lossless_rgb_command(self) -> None:
-        from video_export import VideoEncodingSettings, build_ffmpeg_command
-
         settings = VideoEncodingSettings(
             codec_name=H264_RGB_LOSSLESS,
             fps=60,
@@ -119,9 +157,11 @@ class VideoExportCommandTests(unittest.TestCase):
         self.assertIn("0", command)
         self.assertIn("1920x1080", command)
 
-    def test_h265_command(self) -> None:
-        from video_export import VideoEncodingSettings, build_ffmpeg_command
+    def test_export_frame_count_is_inclusive(self) -> None:
+        self.assertEqual(export_frame_count(0.0, 1.0, 60), 61)
+        self.assertEqual(export_frame_count(2.0, 2.0, 60), 1)
 
+    def test_h265_command(self) -> None:
         settings = VideoEncodingSettings(
             codec_name=H265_HIGH_QUALITY,
             fps=30,
